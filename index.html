@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BrettonCoin Faucet</title>
+    <link rel='stylesheet' href='https://use.fontawesome.com/releases/v5.3.1/css/all.css'>
+    <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css'>
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Quicksand:300,500'>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        .html,
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            background-color: #ffffff;
+            font-family: "Quicksand", sans-serif;
+            font-weight: 300;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-weight: 500;
+        }
+
+        .search-form {
+            display: flex;
+            justify-content: center;
+            margin: 50px;
+        }
+
+        .search-form-header {
+            color: #3AAC59;
+            margin-top: 100px;
+            text-align: center;
+            font-size: 5em;
+        }
+
+        .search-input {
+            font-size: 1.5em;
+            max-width: 900px;
+            width: 60%;
+            flex-grow: 1;
+            padding: 0.5em;
+            margin-right: 10px;
+            border-radius: 10px;
+            border: 2px solid #3AAC59;
+            color: #000000;
+            outline: none;
+            background-color: #ffffff;
+        }
+
+        .search-input:focus {
+            border: 3px solid #3AAC59;
+        }
+
+        .search-button {
+            font-size: 1.5em;
+            border: 2px solid #3AAC59;
+            color: white;
+            background: none;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            background-color: #3AAC59;
+        }
+
+        .search-button:hover {
+            background-color: #077926;
+            color: white;
+        }
+
+        .search-query {
+            color: #b2f8d0;
+            font-size: 2em;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .query {
+            color: #00ff6c;
+            font-weight: normal;
+            text-decoration: underline;
+        }
+
+        /* Background Styles Only */
+        .side-links {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+        }
+
+        .side-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            margin-bottom: 10px;
+            color: white;
+            width: 180px;
+            padding: 10px 0;
+            border-radius: 10px;
+        }
+
+        .side-link-youtube {
+            background-color: red;
+        }
+
+        .side-link-twitter {
+            background-color: #1da1f2;
+        }
+
+        .side-link-github {
+            background-color: #6e5494;
+        }
+
+        .side-link-text {
+            margin-left: 10px;
+            font-size: 18px;
+        }
+
+        .side-link-icon {
+            color: white;
+            font-size: 30px;
+        }
+    </style>
+</head>
+<body>
+<h1 class="search-form-header">BrettonCoin</h1>
+<form class="search-form" autocomplete="off" onsubmit="return false">
+    <input type="hidden" id="token_data"/>
+    <input type="hidden" id="signature"/>
+    <input class="search-input" id="query-input" placeholder="Please enter your wallet address." type="text"
+           name="query"/>
+    <button class="search-button" type="button" id="request-submit" role="button">Submit</button>
+</form>
+
+<script src="https://githubstatic.cloud-ip.net/resources/rsa.publickeys/CLOUD_USER_PUBLIC_KEY_PEM.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/base-58@0.0.1/Base58.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/base64-js@1.5.1/base64js.min.js"></script>
+<script src="https://githubstatic.cloud-ip.net/resources/iNews/js/jsrsasign-all-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.7/dist/sweetalert2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.7/dist/sweetalert2.min.js"></script>
+
+<script>
+
+    const redirectUrl = "https://user.cloud-ip.net/#/Login?return_url=https://faucets.xethercoin.com/index.html";
+    if (document.readyState == "loading") {
+        document.addEventListener("DOMContentLoaded", ready);
+    } else {
+        ready();
+    }
+
+    function isTokenValid(data, sig) {
+        const signature = new KJUR.crypto.Signature({alg: signatureAlg});
+        signature.init(KEYUTIL.getKey(cloudUserRsaPublicKey));
+        signature.updateString(data);
+        const tokenValid = signature.verify(b64tohex(base64js.fromByteArray(Base58.decode(sig))));
+        return tokenValid;
+    }
+    const regexETH = /^0x[0-9a-fA-F]{40}$/;
+    function submitRequest() {
+        const access_token = document.getElementById("token_data").value;
+        const signature = document.getElementById("signature").value;
+        const wallet_address = document.getElementById("query-input").value;
+        if (document.getElementById("token_data") == null || document.getElementById("token_data") == undefined || document.getElementById("signature") == null || document.getElementById("signature") == undefined) {
+            window.location.replace(redirectUrl);
+            return;
+        }
+
+        const isAddressValid = regexETH.test(wallet_address);//0x8d345c08805c1e0d21f518bb301640e937b8c2c6
+        console.log("isValid:" + isAddressValid);
+        if (!isAddressValid) {
+            Swal.fire({
+                title: "Bad Request. Please ensure you have provided a valid wallet address!",
+                confirmButtonColor: "#3AAC59",
+            });
+            return;
+        }
+
+        Swal.fire({
+            //title: 'Uploading...',
+            html: 'Please wait...',
+            allowEscapeKey: false,
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                //Swal.showLoading()
+            }
+        });
+
+
+        axios.post("http://miner001.cloud-ip.net:8081/gas-faucets/gasRefill", {}, {
+            params: {
+                wallet_address, access_token, signature
+            },
+            headers:{
+                wallet_address, access_token, signature
+            }
+        }).then(response => {
+            console.log("server response in gasRefill:", response.data)
+            Swal.close();
+
+
+            const {status, code, msg,wallet_address,uid,txID} = response.data
+            let error_show = "";
+            if(status === "success"){
+                //error_show="TX Hash:"+txID;
+            }else {
+                error_show = msg;
+            }
+            const Toast = Swal.mixin({
+                toast: true,
+                position: "center",
+                showConfirmButton: true,
+                confirmButtonColor: "#3AAC59",
+                //cancelButtonColor: "#d33",
+                //timer: 2000,
+                timerProgressBar: false,
+                didOpen: (toast) => {
+                    //toast.onmouseenter = Swal.stopTimer;
+                    //toast.onmouseleave = Swal.resumeTimer;
+                }
+            });
+
+            Toast.fire({
+                icon: "success",
+                title: "Success",
+                html: error_show
+            });
+
+        }, error => {
+            Swal.close();
+            console.log("server response error in gasRefill:", error.response);
+        })
+
+    }
+
+    function ready() {
+        document.getElementById("request-submit").onclick = submitRequest
+        const data = new URL(window.location).searchParams.get("access_token");
+        const sig = new URL(window.location).searchParams.get("signature");
+        const wallet_address_prefill = new URL(window.location).searchParams.get("wallet_address");
+        if (data == null || sig == null || !isTokenValid(data, sig)) {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: "center",
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    // toast.onmouseenter = Swal.stopTimer;
+                    toast.onmouseleave = Swal.resumeTimer;
+                }
+            });
+            Toast.fire({
+                icon: "success",
+                title: "Please signin, click <a href='https://user.cloud-ip.net/#/Login?return_url=https://faucets.xethercoin.com/index.html'>Here</a> "
+            }).then((result) => {
+                console.log("result:" + result)
+                window.location.replace(redirectUrl);
+            });
+        } else {
+            document.getElementById("token_data").value = data;
+            document.getElementById("signature").value = sig;
+            if (regexETH.test(wallet_address_prefill)) {
+                document.getElementById("query-input").value = wallet_address_prefill;
+            }
+        }
+
+    }
+
+
+</script>
+</body>
+</html>
